@@ -2,13 +2,15 @@ import os
 import streamlit as st
 import langgraph.graph as lg
 from langchain_groq import ChatGroq
-from langchain.tools import Tool
 from duckduckgo_search import DDGS
 from pydantic import BaseModel
 from typing import List
+import pyttsx3
 
-# Set up Groq API key (Replace with your actual key)
-os.environ["GROQ_API_KEY"] = "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"
+# -----------------------------
+# 🔑 Set up Groq API Key
+# -----------------------------
+os.environ["GROQ_API_KEY"] = "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"  # Replace with your actual key
 llm = ChatGroq(model_name="mixtral-8x7b-32768")
 
 # -----------------------------
@@ -38,7 +40,9 @@ def summarize_news(state: NewsState) -> dict:
     for article in state.articles:
         prompt = f"Summarize this news article: {article['title']} - {article.get('body', '')}"
         response = llm.invoke(prompt)
-        summaries.append({"title": article['title'], "summary": response})
+        summary_text = response.content  # Extract only the text
+
+        summaries.append({"title": article['title'], "summary": summary_text})
     return {"summaries": summaries}
 
 # -----------------------------
@@ -50,7 +54,9 @@ def categorize_news(state: NewsState) -> dict:
     for item in state.summaries:
         prompt = f"Classify this news article into a category (Politics, Tech, Sports, Business, Others): {item['summary']}"
         category = llm.invoke(prompt)
-        categorized_news.append({"title": item['title'], "summary": item['summary'], "category": category})
+        category_text = category.content  # Extract only the text
+
+        categorized_news.append({"title": item['title'], "summary": item['summary'], "category": category_text})
     return {"categorized_news": categorized_news}
 
 # -----------------------------
@@ -71,6 +77,22 @@ workflow.set_finish_point("categorize_news")
 
 # Compile the graph
 news_graph = workflow.compile()
+
+# -----------------------------
+# 🎙️ Text-to-Speech Function
+# -----------------------------
+engine = pyttsx3.init()
+
+def speak_text(text):
+    """Convert text to speech"""
+    engine.say(text)
+    engine.runAndWait()
+
+# Optional: Customize voice settings
+engine.setProperty('rate', 150)  # Speed of speech (default: 200)
+engine.setProperty('volume', 0.9)  # Volume level (0.0 to 1.0)
+voices = engine.getProperty('voices')
+engine.setProperty('voice', voices[1].id)  # 0: Male, 1: Female (Change as needed)
 
 # -----------------------------
 # 🌟 Streamlit UI
@@ -94,5 +116,9 @@ if st.button("Fetch & Summarize News"):
             st.write(f"**Category:** {item['category']}")
             st.write(f"**Summary:** {item['summary']}")
             st.divider()
+            
+            # Speak the summary
+            speak_text(f"{item['title']}. Category: {item['category']}. Summary: {item['summary']}")
+
     else:
         st.warning("⚠️ Please enter a topic to search!")
