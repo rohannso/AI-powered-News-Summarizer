@@ -5,7 +5,6 @@ from langchain_groq import ChatGroq
 from duckduckgo_search import DDGS
 from pydantic import BaseModel
 from typing import List
-import pyttsx3
 
 # -----------------------------
 # 🔑 Set up Groq API Key
@@ -79,22 +78,6 @@ workflow.set_finish_point("categorize_news")
 news_graph = workflow.compile()
 
 # -----------------------------
-# 🎙️ Text-to-Speech Function
-# -----------------------------
-engine = pyttsx3.init()
-
-def speak_text(text):
-    """Convert text to speech"""
-    engine.say(text)
-    engine.runAndWait()
-
-# Optional: Customize voice settings
-engine.setProperty('rate', 150)  # Speed of speech (default: 200)
-engine.setProperty('volume', 0.9)  # Volume level (0.0 to 1.0)
-voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[1].id)  # 0: Male, 1: Female (Change as needed)
-
-# -----------------------------
 # 🌟 Streamlit UI
 # -----------------------------
 st.title("📰 AI-Powered News Summarizer & Categorizer")
@@ -111,14 +94,35 @@ if st.button("Fetch & Summarize News"):
             output_dict = news_graph.invoke(initial_state)  # ✅ Get dictionary output
 
         st.subheader("🔹 Categorized News")
-        for item in output_dict.get("categorized_news", []):  # ✅ Use .get() for safety
+        for idx, item in enumerate(output_dict.get("categorized_news", [])):  # ✅ Use .get() for safety
             st.markdown(f"### 📰 {item['title']}")
             st.write(f"**Category:** {item['category']}")
             st.write(f"**Summary:** {item['summary']}")
             st.divider()
-            
-            # Speak the summary
-            speak_text(f"{item['title']}. Category: {item['category']}. Summary: {item['summary']}")
+
+            # Unique identifier for each news item
+            unique_id = f"text_{idx}"
+
+            # JavaScript Speech Synthesis via iframe embedding
+            js_code = f"""
+            <script>
+                function speakText_{unique_id}() {{
+                    var msg = new SpeechSynthesisUtterance("{item['title']} - {item['summary']}");
+                    window.speechSynthesis.cancel();  // Stop previous speech
+                    window.speechSynthesis.speak(msg);
+                }}
+
+                function stopSpeech_{unique_id}() {{
+                    window.speechSynthesis.cancel();
+                }}
+            </script>
+
+            <button onclick="speakText_{unique_id}()">🔊 Speak</button>
+            <button onclick="stopSpeech_{unique_id}()" style="margin-left: 10px;">⏹️ Stop</button>
+            """
+
+            # Embed JavaScript buttons
+            st.components.v1.html(js_code, height=60)
 
     else:
         st.warning("⚠️ Please enter a topic to search!")
